@@ -80,6 +80,14 @@ nato_alphabet = {
     'niner': '9',
 }
 
+def focus_aenea_client():
+    """Ensure the Aenea client has focus in the Windows VM"""
+    OriginalKey("cas-a").execute()
+
+def focus_terminal():
+    focus_aenea_client()
+    Key("cas-1").execute()
+    Pause("50").execute()
 
 def down_case(text):
     "This thing => this thing"
@@ -342,8 +350,6 @@ class BashRule(MappingRule):
         "(attach|connect) session <text>": Text("tmux attach -t %(text)s") + Key("tab, enter"),
         "list sessions": Text("tmux list-sessions") + Key("enter"),
         "(Rerun last|do again|do it again)": Key("up, enter"),
-        "go home": Text("cd ~") + Key("enter"),
-        "go source (folder|dir|directory)": Text("cd ~/src/") + Key("enter"),
         "get pods": Text("kubectl get pods") + ("enter"),
         "git reset hard": Text("git reset --hard") + Key("enter"),
         "git pull": Text("git pull") + Key("enter"),
@@ -368,13 +374,14 @@ terminal_grammar.add_rule(FuzzyFileRule())
 
 
 class FuzzyCDRule(CompoundRule):
-    spec = "go (folder|directory) <text>"
+    spec = "(change|switch|go) (folder|dir|directory) <text>"
     extras = [Dictation("text")]
 
     def _process_recognition(self, node, extras):
         query = smash_case(str(extras["text"]))
-        Text("cd; cd (fd | fzf --query %s)" % query).execute()
-        Key("enter").execute()
+        Key("a-g").execute()
+        Pause("50").execute()
+        Text(query).execute()
 terminal_grammar.add_rule(FuzzyCDRule())
 
 
@@ -384,9 +391,10 @@ class FuzzyEditRule(CompoundRule):
 
     def _process_recognition(self, node, extras):
         query = smash_case(str(extras["text"]))
-        Text("findedit %s)" % query).execute()
+        focus_terminal()
+        Text("findedit ").execute()
+        Text(query).execute()
         Key("enter").execute()
-
 terminal_grammar.add_rule(FuzzyEditRule())
 
 
@@ -449,7 +457,7 @@ class SwitchAwesomeTagRule(CompoundRule):
 
     def _process_recognition(self, node, extras):
         # Focus Aenea client via AutoHotkey
-        OriginalKey("cas-a").execute()
+        focus_aenea_client()
 
         # Switch tag
         keystroke = "cas-%s" % extras["n"]
