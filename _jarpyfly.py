@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from dragonfly import CompoundRule, Grammar, MappingRule, Integer, Dictation, Function
-from aenea.strict import Key, Text, Pause
+from aenea.strict import Key, Text, Pause, Mouse
 from dragonfly import Key as OriginalKey
 from dragonfly import FocusWindow as LocalFocusWindow
 from aenea import ProxyAppContext as AppContext
@@ -80,7 +80,12 @@ def screaming_snake_case(text):
 def title_case(text):
     "This thing => This Thing"
     print "title_case <- %s" % text
-    return snake_case(text).upper()
+    return str(text).title()
+
+def pascal_case(text):
+    "This thing => ThisThing"
+    print "pascal_case <- %s" % text
+    return title_case(text).replace(" ", "")
 
 def nato_to_char(text):
     print "nato_to_char <- %s" % text
@@ -144,6 +149,7 @@ def nato_to_char(text):
         'enter': 'enter',
         'up': 'pgup',
         'down': 'pgdown',
+        'hash': '#',
     }
 
     phonetics = text.lower().split()
@@ -167,6 +173,8 @@ class EmacsRule(MappingRule):
         "three windows": Key("c-x, 1, c-x, 3, c-x, 3, c-x, plus"),
         "four windows": Key("c-x, 1, c-x, 2, c-x, 3, s-down, c-x, 3, c-x, plus"),
         "six windows": Key("c-x, 1, c-x, 2, c-x, 3, c-x, 3, s-down, c-x, 3, c-x, 3, c-x, plus"),
+        "balance windows": Key("c-x, plus"),
+        "(kill|close) window": Key("c-x, 0"),
         "kill buffer": Key("c-x, k"),
         "kill word": Key("a-d"),
         "done with buffer": Key("c-x, hash"),
@@ -180,6 +188,7 @@ class EmacsRule(MappingRule):
         "window far left": Key("s-left:4"),
         "window down": Key("s-down"),
         "window up": Key("s-up"),
+        "jump window": Key("c-x, o"),
         "open line": Key("c-e, a-o"),
         "save (buffer|file)": Key("c-x, c-s"),
         "Centre view": Key("c-u, 1, 0, c-l"),
@@ -191,9 +200,11 @@ class EmacsRule(MappingRule):
         "end [of] line": Key("c-e"),
         "(search forward|pro search) <text>": Key("c-s") + Text("%(text)s"),
         "(search forward|pro search)": Key("c-s"),
-        "(mark|set mark)": Key("c-space"),
-        "jump line": Key("j, l"),
-        "jump word": Key("j, w"),
+        "occurrences": Key("c-o"),
+        "(mark|set mark)": Key("cas-space"),
+        "jump line": Key("c-c, f6, l"),
+        "jump word": Key("c-c, f6, w"),
+        "(show|list) buffers": Key("c-x, c-b"),
 }
 
     extras = [
@@ -202,6 +213,17 @@ class EmacsRule(MappingRule):
     ]
 emacs_grammar.add_rule(EmacsRule())
 
+
+class JumpWord1Rule(CompoundRule):
+    spec = "jump word <text>"
+    extras = [Dictation("text")]
+
+    def _process_recognition(self, node, extras):
+        print "JumpWord1Rule: " + str(extras["text"])
+        Key("c-c, f6, e").execute()
+        Pause("20").execute()
+        Key(nato_to_char(str(extras["text"]))[0]).execute()
+emacs_grammar.add_rule(JumpWord1Rule())
 
 class FindFileRule(CompoundRule):
     spec = "(find|open) file <text>"
@@ -215,7 +237,7 @@ emacs_grammar.add_rule(FindFileRule())
 
 
 class RecentFileRule(CompoundRule):
-    spec = "recent file <text>"
+    spec = "[(find|open)] recent file <text>"
     extras = [Dictation("text")]
 
     def _process_recognition(self, node, extras):
@@ -234,17 +256,6 @@ class JumpBufferRule(CompoundRule):
         Text(smash_case(extras["text"])).execute()
         Key("enter").execute()
 emacs_grammar.add_rule(JumpBufferRule())
-
-
-class JumpWordRule(CompoundRule):
-    spec = "jump word <text>"
-    extras = [Dictation("text")]
-
-    def _process_recognition(self, node, extras):
-        letters = nato_to_char(str(extras["text"]))
-        Key("j, w").execute()
-        Key(', '.join(letters)).execute()
-emacs_grammar.add_rule(JumpWordRule())
 
 
 class MetaXRule(CompoundRule):
@@ -313,6 +324,26 @@ class ScreamingSnakeRule(CompoundRule):
 global_grammar.add_rule(ScreamingSnakeRule())
 
 
+class TitleRule(CompoundRule):
+    spec = "(title|title case) <text>"
+    extras = [Dictation("text")]
+
+    def _process_recognition(self, node, extras):
+        t = Text(title_case(str(extras["text"])))
+        t.execute()
+global_grammar.add_rule(TitleRule())
+
+
+class PascalRule(CompoundRule):
+    spec = "(pascal|pascal case|smash title) <text>"
+    extras = [Dictation("text")]
+
+    def _process_recognition(self, node, extras):
+        t = Text(pascal_case(str(extras["text"])))
+        t.execute()
+global_grammar.add_rule(PascalRule())
+
+
 class NatoRule(CompoundRule):
     spec = "(nato|type|press|punch|push) <text>"
     extras = [Dictation("text")]
@@ -359,6 +390,8 @@ class BrowserRule(MappingRule):
         "down": Key("pgdown"),
         "up": Key("pgup"),
         "links": Key("escape") + Pause("10") + Key("f"),
+        "go back": Key("escape") + Pause("10") + Key("s-h"),
+        "go forward": Key("escape") + Pause("10") + Key("s-l"),
         "open <text>": Key("a-home") + Pause("50") + Key("escape") + Pause("10") + Key("o") + Pause("10") + Text("%(text)s"),
         "(search|google) [for] <text>": Key("a-home") + Pause("50") + Text("%(text)s"),
         "close": Key("c-w"),
@@ -418,6 +451,7 @@ class BashRule(MappingRule):
         "list sessions": Text("tmux list-sessions") + Key("enter"),
         "(rerun last|do again|do it again|run again)": Key("up, enter"),
         "[cube] get pods": Text("kubectl get pods") + Key("enter"),
+
         "(git|get) reset hard": Text("git reset --hard") + Key("enter"),
         "(git|get|show) diff": Text("git diff") + Key("enter"),
         "(git|get|show) status": Text("git status") + Key("enter"),
@@ -427,7 +461,7 @@ class BashRule(MappingRule):
         "(git|get) pull": Text("git pull") + Key("enter"),
         "(git|get) fetch [all]": Text("git fetch --all") + Key("enter"),
         "[show] (git|get) log": Text("fzf-git-log") + Key("enter"),
-        "[(git|get)] commit patch": Text("git commit -p") + Key("enter"),
+        "[(git|get)] commit [patch]": Text("git commit -p") + Key("enter"),
         "[(git|get)] push": Text("git push") + Key("enter"),
         "[(git|get)] push force": Text("git push --force"),
         "[(git|get)] push [(this|new)] branch [to origin]": Text("git push -u origin (git rev-parse --abbrev-ref HEAD)") + Key("enter"),
@@ -435,8 +469,35 @@ class BashRule(MappingRule):
         "[(git|get)] rebase abort": Text("git rebase --abort") + Key("enter"),
         "[(git|get)] commit all": Text("git commit --all") + Key("enter"),
         "abort [(git|get)] rebase": Text("git rebase --abort") + Key("enter"),
+
+        "chudder": Key("a-g"),
+        "(chudder|folder|directory|go) home": Text("cd ~") + Key("enter"),
+        "(chudder|folder|directory) up": Text("cd ..") + Key("enter"),
+
+        "Lang Lang": Text("exa -la") + Key("enter"),
+
         "(show|list) [docker] containers": Text("docker ps -a") + Key("enter"),
         "show environment": Text("env") + Key("enter"),
+
+        "(show|list) tasks": Text("task ls") + Key("enter"),
+
+        "grep [for] <text>": Text("rg %(text)s") + Key("enter"),
+        "grep that for <text>": Key("c-p") + Text(" | rg -i %(text)s") + Key("enter"),
+
+        "findedit <text>": Text("findedit %(text)s") + Key("enter"),
+        "grepedit <text>": Text("grepedit %(text)s") + Key("enter"),
+        "findedit <text> here": Text("findedit %(text)s $PWD") + Key("enter"),
+        "grepedit <text> here": Text("grepedit %(text)s $PWD") + Key("enter"),
+
+        "(switch|google|kubernetes|kates) project": Text("kzf-project") + Key("enter"),
+        "(switch|google|kubernetes|kates) project <text>": Text("kzf-project %(text)s") + Key("enter"),
+        "(switch|kubernetes|kates) cluster": Text("kzf-cluster") + Key("enter"),
+        "(switch|kubernetes|kates) cluster <text>": Text("kzf-cluster %(text)s") + Key("enter"),
+        "(switch|kubernetes|kates) namespace": Text("kzf-namespace") + Key("enter"),
+        "(switch|kubernetes|kates) namespace <text>": Text("kzf-namespace %(text)s") + Key("enter"),
+
+        "tail (pod|log|logs)":        Text("kzf-tail") + Key("enter"),
+        "tail (pod|log|logs) <text>": Text("kzf-tail %(text)s") + Key("enter"),
     }
     extras = [
         Dictation("text"),
@@ -478,7 +539,7 @@ terminal_grammar.add_rule(FuzzyFileRule())
 
 
 class FuzzyCDRule(CompoundRule):
-    spec = "(change|switch|go) (folder|dir|directory) <text>"
+    spec = "(chudder|folder|directory) <text>"
     extras = [Dictation("text")]
 
     def _process_recognition(self, node, extras):
@@ -508,9 +569,11 @@ class TmuxRule(MappingRule):
         "new (window|tab|shell|terminal)": Key("c-b, c"),
         "rename (window|tab|shell|terminal) <text>": Key("c-b, comma") + Key("backspace:50") + Text("%(text)s") + Key("enter"),
         "rename session <text>": Key("c-b, dollar") + Key("backspace:50") + Text("%(text)s") + Key("enter"),
-        "(window|tab|shell|terminal) <n>": Key("c-b, %(n)d"),
+        "(window|shell|terminal) <n>": Key("c-b, %(n)d"),
         "(disconnect|detach) session": Key("c-b, d"),
         "(jump|switch|select|choose) session": Key("c-b, w"),
+        "switch": Key("c-b, w"),
+        "switch <n>": Key("c-b, %(n)d"),
     }
     extras = [
         Dictation("text"),
@@ -524,6 +587,7 @@ terminal_grammar.load()
 class WindowManagementRule(MappingRule):
     mapping = {
         "abort": Key("c-c"),
+        "escape": Key("escape"),
         "[focus] window up": Key("s-up"),
         "[focus] window down": Key("s-down"),
         "[focus] window left": Key("s-left"),
@@ -532,6 +596,9 @@ class WindowManagementRule(MappingRule):
         "[focus] frame down": Key("ca-down"),
         "[focus] frame left": Key("ca-left"),
         "[focus] frame right": Key("ca-right"),
+        "(make master|master frame|frame master|center frame)": Key("ca-enter"),
+        "left master": Key("ca-left, ca-left, ca-enter"),
+        "right master": Key("ca-right, ca-right, ca-enter"),
         "[focus] (next|other) (screen|monitor)": Key("cw-j"),
         "spank": Key("enter"),
         "(twin|double|hard) spank": Key("enter") + Pause("50") + Key("enter"),
@@ -551,6 +618,17 @@ class WindowManagementRule(MappingRule):
         "go [to the] (bottom|end)": Key("end"),
         "page up": Key("pgup"),
         "page down": Key("pgdown"),
+        "cut [that]": Key("c-x"),
+        "copy [that]": Key("c-c"),
+        "shift copy [that]": Key("cs-c"),
+        "Delete [that]": Key("delete"),
+        "paste [that]": Key("c-v"),
+        "Tabular": Key("tab"),
+        "Twin tabular": Key("tab") + Pause("10") + Key("tab"),
+
+        "[left] click": Mouse("left"),
+        "(right click|crick)": Mouse("right"),
+        "middle click": Mouse("middle"),
     }
     extras = [
         Dictation("text"),
