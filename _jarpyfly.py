@@ -96,9 +96,52 @@ def nato_to_char(text):
     print "nato_to_char <- %s" % text
 
     fixups = {
-        "if to": "f2",
+        "if one": "f1",
+        "of one": "f1",
+        "oh one": "f1",
+        "if won": "f1",
+        "of won": "f1",
+        "oh won": "f1",
         "if too": "f2",
+        "of too": "f2",
         "if two": "f2",
+        "of two": "f2",
+        "oh two": "f2",
+        "if three": "f3",
+        "of three": "f3",
+        "oh three": "f3",
+        "if for": "f4",
+        "of for": "f4",
+        "if four": "f4",
+        "of four": "f4",
+        "oh four": "f4",
+        "if five": "f5",
+        "of five": "f5",
+        "oh five": "f5",
+        "if six": "f6",
+        "of six": "f6",
+        "oh six": "f6",
+        "if seven": "f7",
+        "of seven": "f7",
+        "oh seven": "f7",
+        "if ate": "f8",
+        "of ate": "f8",
+        "oh ate": "f8",
+        "if eight": "f8",
+        "of eight": "f8",
+        "oh eight": "f8",
+        "if nine": "f9",
+        "of nine": "f9",
+        "oh nine": "f9",
+        "if ten": "f10",
+        "of ten": "f10",
+        "oh ten": "f10",
+        "if eleven": "f11",
+        "of eleven": "f11",
+        "oh eleven": "f11",
+        "if twelve": "f12",
+        "of twelve": "f12",
+        "oh twelve": "f12",
     }
 
     nato_alphabet = {
@@ -165,7 +208,7 @@ def nato_to_char(text):
         'tab': 'tab',
         'untab': 's-tab',
         'backslash': 'backslash',
-        'f1': 'f1',#2
+        'f1': 'f1',
         'f2': 'f2',
         'f3': 'f3',
         'f4': 'f4',
@@ -477,12 +520,20 @@ slack_grammar.load()
 
 
 # DCS
+def radio_menu(*args):
+    keys = ["backslash/20"]
+    for number in args:
+        keys.append("f%s/20" % number)
+    key_spec = ", ".join(keys)
+
+    print "radio_menu -> Key('%s')" % key_spec
+    return Key(key_spec)
+
 def ctld(*args):
     """Operate the CTLD radio menu in DCS.
 
     Takes integers as args, specifying the CTLD sub-menu options to select.
     """
-    print "ctld <- %s" % args
     keys = ["backslash/20", "f10/20", "f6/20"]
     for number in args:
         keys.append("f%s/20" % number)
@@ -493,9 +544,30 @@ def ctld(*args):
 
 
 dcs_grammar = Grammar("dcs", dcs_context)
+class DCSRule(MappingRule):
+    mapping = {
+        "radio": Key("backslash"),
+        "radio <n>": Key("f%(n)d"),
+        "(radio exit|exit radio)": Key("f12"),
+        "refuel and rearm": radio_menu(8, 1),
+        "request repair": radio_menu(8, 3),
+        "ground power (on|connect|attach)": radio_menu(8, 2, 1),
+        "ground power (off|disconnect|remove|attach)": radio_menu(8, 2, 2),
+    }
+    extras = [
+        Dictation("text"),
+        Integer("n", 0, 9),
+    ]
+dcs_grammar.add_rule(DCSRule())
+
 class CTLDRule(MappingRule):
     mapping = {
-        "drop crate": ctld(6, 2),
+        "load anti (air|airaft) troops": ctld(1, 4),
+        "load anti tank troops": ctld(1, 5),
+        "load mortar (squad|troops|crew)": ctld(1, 5),
+
+        "unpack crate": ctld(6, 1),
+        "drop crate":   ctld(6, 2),
     }
     extras = [
         Dictation("text"),
