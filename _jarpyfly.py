@@ -24,10 +24,15 @@ slack_context = AppContext(title="Slack")
 terminal_context = AppContext(title="termite")
 virtualbox_context = AppContext(title="Oracle VM VirtualBox")
 
-firefox_context = AppContext(executable="firefox")
+firefox_linux_context = AppContext(executable="firefox")
+firefox_windows_context = AppContext(title="Mozilla Firefox")
+discord_context = AppContext(title="Discord")
 chrome_context = AppContext(title="Google Chrome")
 chromium_context = AppContext(title="Chromium")
-browser_context = chrome_context | chromium_context | firefox_context
+browser_context = chrome_context | chromium_context | firefox_linux_context | firefox_windows_context
+
+#dcs_context = AppContext(title='Digital Combat Simulator'
+dcs_context = AppContext(executable="dcs.exe")
 
 def focus_aenea_client():
     """Ensure the Aenea client has focus in the Windows VM"""
@@ -90,15 +95,21 @@ def pascal_case(text):
 def nato_to_char(text):
     print "nato_to_char <- %s" % text
 
+    fixups = {
+        "if to": "f2",
+        "if too": "f2",
+        "if two": "f2",
+    }
+
     nato_alphabet = {
         'alpha': 'a',
         'alfa': 'a',
         'offer': 'a',
-        'of the': 'a',
         'bravo': 'b',
         'charlie': 'c',
         'delta': 'd',
         'echo': 'e',
+        'ecco': 'e',
         'foxtrot': 'f',
         'golf': 'g',
         'hotel': 'h',
@@ -150,9 +161,33 @@ def nato_to_char(text):
         'up': 'pgup',
         'down': 'pgdown',
         'hash': '#',
+        'pipe': '|',
+        'tab': 'tab',
+        'untab': 's-tab',
+        'backslash': 'backslash',
+        'f1': 'f1',#2
+        'f2': 'f2',
+        'f3': 'f3',
+        'f4': 'f4',
+        'f5': 'f5',
+        'f6': 'f6',
+        'f7': 'f7',
+        'f8': 'f8',
+        'f9': 'f9',
+        'f10': 'f10',
+        'f11': 'f11',
+        'f12': 'f12',
     }
 
-    phonetics = text.lower().split()
+    text = text.lower()
+    try:
+        fix = fixups[text]
+        print "nato_to_char fixup '%s' -> '%s'" % (text, fix)
+        text = fix
+    except KeyError:
+        pass
+
+    phonetics = text.split()
     glyphs = []
     for phonetic in phonetics:
         try:
@@ -177,6 +212,7 @@ class EmacsRule(MappingRule):
         "(kill|close) window": Key("c-x, 0"),
         "kill buffer": Key("c-x, k"),
         "kill word": Key("a-d"),
+        "save [buffer]": Key("c-x, c-s"),
         "done with buffer": Key("c-x, hash"),
         "retro word": Key("a-b"),
         "pro word": Key("a-f"),
@@ -205,7 +241,8 @@ class EmacsRule(MappingRule):
         "jump line": Key("c-c, f6, l"),
         "jump word": Key("c-c, f6, w"),
         "(show|list) buffers": Key("c-x, c-b"),
-}
+        "untab": Key("s-escape"),
+    }
 
     extras = [
         Dictation("text"),
@@ -377,10 +414,18 @@ class GmailRule(MappingRule):
         "read [that]": Key("o"),
         "(expand|show all)": Key(";"),
     }
-
 gmail_grammar = Grammar("gmail", gmail_context)
 gmail_grammar.add_rule(GmailRule())
 gmail_grammar.load()
+
+
+class DiscordRule(MappingRule):
+    mapping = {
+        "[discord] channel": Key("escape, c-k") + Text("%(text)s"),
+    }
+discord_grammar = Grammar("discord", discord_context)
+discord_grammar.add_rule(DiscordRule())
+discord_grammar.load()
 
 
 class BrowserRule(MappingRule):
@@ -421,15 +466,44 @@ class SlackRule(MappingRule):
     mapping = {
         "[slack] channel <text>": Key("escape, c-k") + Text("%(text)s"),
         "(quit|leave|part|close) channel": Text("/leave") + Key("enter"),
+        "Mark [channel] read": Key("escape, escape"),
     }
     extras = [
         Dictation("text"),
     ]
+slack_grammar = Grammar("slack", slack_context)
+slack_grammar.add_rule(SlackRule())
+slack_grammar.load()
 
 
-gmail_grammar = Grammar("slack", slack_context)
-gmail_grammar.add_rule(SlackRule())
-gmail_grammar.load()
+# DCS
+def ctld(*args):
+    """Operate the CTLD radio menu in DCS.
+
+    Takes integers as args, specifying the CTLD sub-menu options to select.
+    """
+    print "ctld <- %s" % args
+    keys = ["backslash/20", "f10/20", "f6/20"]
+    for number in args:
+        keys.append("f%s/20" % number)
+    key_spec = ", ".join(keys)
+
+    print "ctld -> Key('%s')" % key_spec
+    return Key(key_spec)
+
+
+dcs_grammar = Grammar("dcs", dcs_context)
+class CTLDRule(MappingRule):
+    mapping = {
+        "drop crate": ctld(6, 2),
+    }
+    extras = [
+        Dictation("text"),
+        Integer("n", 0, 9),
+    ]
+dcs_grammar.add_rule(CTLDRule())
+dcs_grammar.load()
+
 
 # Terminal
 terminal_grammar = Grammar("terminal", terminal_context)
@@ -444,14 +518,13 @@ class TermiteRule(MappingRule):
     ]
 terminal_grammar.add_rule(TermiteRule())
 
+
 class BashRule(MappingRule):
     mapping = {
         "new session <text>": Text("tmux new-session -t %(text)s") + Key("enter"),
         "(attach|connect) session <text>": Text("tmux attach -t %(text)s") + Key("tab, enter"),
         "list sessions": Text("tmux list-sessions") + Key("enter"),
         "(rerun last|do again|do it again|run again)": Key("up, enter"),
-        "[cube] get pods": Text("kubectl get pods") + Key("enter"),
-
         "(git|get) reset hard": Text("git reset --hard") + Key("enter"),
         "(git|get|show) diff": Text("git diff") + Key("enter"),
         "(git|get|show) status": Text("git status") + Key("enter"),
@@ -489,12 +562,13 @@ class BashRule(MappingRule):
         "findedit <text> here": Text("findedit %(text)s $PWD") + Key("enter"),
         "grepedit <text> here": Text("grepedit %(text)s $PWD") + Key("enter"),
 
-        "(switch|google|kubernetes|kates) project": Text("kzf-project") + Key("enter"),
-        "(switch|google|kubernetes|kates) project <text>": Text("kzf-project %(text)s") + Key("enter"),
-        "(switch|kubernetes|kates) cluster": Text("kzf-cluster") + Key("enter"),
-        "(switch|kubernetes|kates) cluster <text>": Text("kzf-cluster %(text)s") + Key("enter"),
-        "(switch|kubernetes|kates) namespace": Text("kzf-namespace") + Key("enter"),
-        "(switch|kubernetes|kates) namespace <text>": Text("kzf-namespace %(text)s") + Key("enter"),
+        "(switch|google|cube|kubernetes|kates) project": Text("kzf-project") + Key("enter"),
+        "(switch|google|cube|kubernetes|kates) project <text>": Text("kzf-project %(text)s") + Key("enter"),
+        "(switch|cube|kubernetes|kates) cluster": Text("kzf-cluster") + Key("enter"),
+        "(switch|cube|kubernetes|kates) cluster <text>": Text("kzf-cluster %(text)s") + Key("enter"),
+        "(switch|cube|kubernetes|kates) namespace": Text("kzf-namespace") + Key("enter"),
+        "(switch|cube|kubernetes|kates) namespace <text>": Text("kzf-namespace %(text)s") + Key("enter"),
+        "(cube|kubernetes|kates) get pods": Text("kubectl get pods") + Key("enter"),
 
         "tail (pod|log|logs)":        Text("kzf-tail") + Key("enter"),
         "tail (pod|log|logs) <text>": Text("kzf-tail %(text)s") + Key("enter"),
@@ -579,15 +653,16 @@ class TmuxRule(MappingRule):
         Dictation("text"),
         Integer("n", 0, 9),
     ]
-
 terminal_grammar.add_rule(TmuxRule())
 terminal_grammar.load()
 
 
+wm_grammar = Grammar("window management")
 class WindowManagementRule(MappingRule):
     mapping = {
         "abort": Key("c-c"),
         "escape": Key("escape"),
+        "(twin|double) escape": Key("escape, escape"),
         "[focus] window up": Key("s-up"),
         "[focus] window down": Key("s-down"),
         "[focus] window left": Key("s-left"),
@@ -637,6 +712,7 @@ class WindowManagementRule(MappingRule):
     defaults = {
         "n": 1,
     }
+wm_grammar.add_rule(WindowManagementRule())
 
 class SwitchAwesomeTagRule(CompoundRule):
     spec = "(desktop|desk|tag) <n>"
@@ -644,16 +720,14 @@ class SwitchAwesomeTagRule(CompoundRule):
 
     def _process_recognition(self, node, extras):
         switch_awesome_tag(extras["n"])
+wm_grammar.add_rule(SwitchAwesomeTagRule())
 
 class FocusVisualStudioCodeRule(CompoundRule):
     spec = "focus [visual studio] code"
     def _process_recognition(self, node, extras):
         focus_visual_studio_code()
-
-wm_grammar = Grammar("window management")
-wm_grammar.add_rule(WindowManagementRule())
-wm_grammar.add_rule(SwitchAwesomeTagRule())
 wm_grammar.add_rule(FocusVisualStudioCodeRule())
+
 wm_grammar.load()
 
 
@@ -665,8 +739,6 @@ class JarpyDebugRule(CompoundRule):
         print "Jarpy do debug good!"
         speech_engine.say('Good morning.')
         speech_engine.runAndWait()
-
-
 grammar = Grammar("jarpy debug")
 grammar.add_rule(JarpyDebugRule())
 grammar.load()
